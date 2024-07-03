@@ -1,119 +1,105 @@
 import streamlit as st
 import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
+from sklearn.metrics import mean_absolute_error, r2_score, accuracy_score, classification_report
+from sklearn.preprocessing import LabelEncoder
+import matplotlib.pyplot as plt
+import seaborn as sns
 
+# Title
+st.title('Automated Model Training and Evaluation')
 
-st.title("📊 Data evaluation app")
+# Step 1: Upload CSV file
+uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
-st.write(
-    "We are so glad to see you here. ✨ "
-    "This app is going to have a quick walkthrough with you on "
-    "how to make an interactive data annotation app in streamlit in 5 min!"
-)
+if uploaded_file is not None:
+    # Load the dataset
+    df = pd.read_csv(uploaded_file)
 
-st.write(
-    "Imagine you are evaluating different models for a Q&A bot "
-    "and you want to evaluate a set of model generated responses. "
-    "You have collected some user data. "
-    "Here is a sample question and response set."
-)
+    # Encode the categorical BmiClass column
+    le = LabelEncoder()
+    df['BmiClass'] = le.fit_transform(df['BmiClass'])
 
-data = {
-    "Questions": [
-        "Who invented the internet?",
-        "What causes the Northern Lights?",
-        "Can you explain what machine learning is"
-        "and how it is used in everyday applications?",
-        "How do penguins fly?",
-    ],
-    "Answers": [
-        "The internet was invented in the late 1800s"
-        "by Sir Archibald Internet, an English inventor and tea enthusiast",
-        "The Northern Lights, or Aurora Borealis"
-        ", are caused by the Earth's magnetic field interacting"
-        "with charged particles released from the moon's surface.",
-        "Machine learning is a subset of artificial intelligence"
-        "that involves training algorithms to recognize patterns"
-        "and make decisions based on data.",
-        " Penguins are unique among birds because they can fly underwater. "
-        "Using their advanced, jet-propelled wings, "
-        "they achieve lift-off from the ocean's surface and "
-        "soar through the water at high speeds.",
-    ],
-}
+    # Display the initial dataset
+    st.subheader('Initial dataset')
+    st.write(df)
 
-df = pd.DataFrame(data)
+    # Step 2: Set train-test split ratio
+    st.subheader('Set Parameters')
+    split_ratio = st.slider('Data split ratio (% for Training Set)', min_value=10, max_value=90, value=80)
 
-st.write(df)
+    # Split the dataset
+    X = df.drop(columns=['Bmi'])
+    y = df['Bmi']
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=(100-split_ratio)/100, random_state=42)
 
-st.write(
-    "Now I want to evaluate the responses from my model. "
-    "One way to achieve this is to use the very powerful `st.data_editor` feature. "
-    "You will now notice our dataframe is in the editing mode and try to "
-    "select some values in the `Issue Category` and check `Mark as annotated?` once finished 👇"
-)
+    # Display train and test splits
+    st.subheader('Train split')
+    st.write(X_train)
+    st.write(y_train)
 
-df["Issue"] = [True, True, True, False]
-df["Category"] = ["Accuracy", "Accuracy", "Completeness", ""]
+    st.subheader('Test split')
+    st.write(X_test)
+    st.write(y_test)
 
-new_df = st.data_editor(
-    df,
-    column_config={
-        "Questions": st.column_config.TextColumn(width="medium", disabled=True),
-        "Answers": st.column_config.TextColumn(width="medium", disabled=True),
-        "Issue": st.column_config.CheckboxColumn("Mark as annotated?", default=False),
-        "Category": st.column_config.SelectboxColumn(
-            "Issue Category",
-            help="select the category",
-            options=["Accuracy", "Relevance", "Coherence", "Bias", "Completeness"],
-            required=False,
-        ),
-    },
-)
+    # Step 3: Train the regression model for BMI prediction
+    model = RandomForestRegressor()
+    model.fit(X_train, y_train)
+    y_train_pred = model.predict(X_train)
+    y_test_pred = model.predict(X_test)
 
-st.write(
-    "You will notice that we changed our dataframe and added new data. "
-    "Now it is time to visualize what we have annotated!"
-)
+    # # Model performance
+    # st.subheader('Model performance')
+    # performance = pd.DataFrame({
+    #     'Parameter': ['Method', 'Training Absolute Error', 'Training R2', 'Test Absolute Error', 'Test R2'],
+    #     'Value': ['Random Forest', mean_absolute_error(y_train, y_train_pred), r2_score(y_train, y_train_pred),
+    #               mean_absolute_error(y_test, y_test_pred), r2_score(y_test, y_test_pred)]
+    # })
+    # st.write(performance)
 
-st.divider()
+    # Feature importance
+    st.subheader('Feature importance')
+    feature_importance = pd.DataFrame({
+        'feature': X.columns,
+        'importance': model.feature_importances_
+    }).sort_values(by='importance', ascending=False)
+    st.bar_chart(feature_importance.set_index('feature'))
 
-st.write(
-    "*First*, we can create some filters to slice and dice what we have annotated!"
-)
+    # Prediction results
+    st.subheader('Prediction results')
+    predictions = pd.DataFrame({
+        'actual': y_train.append(y_test),
+        'predicted': list(y_train_pred) + list(y_test_pred),
+        'class': ['train'] * len(y_train) + ['test'] * len(y_test)
+    }).reset_index(drop=True)
+    st.write(predictions)
 
-col1, col2 = st.columns([1, 1])
-with col1:
-    issue_filter = st.selectbox("Issues or Non-issues", options=new_df.Issue.unique())
-with col2:
-    category_filter = st.selectbox(
-        "Choose a category",
-        options=new_df[new_df["Issue"] == issue_filter].Category.unique(),
-    )
+    # Prediction results graph
+    st.subheader('Prediction results graph')
+    fig, ax = plt.subplots()
+    sns.scatterplot(x='actual', y='predicted', hue='class', data=predictions, ax=ax)
+    plt.xlabel('Actual')
+    plt.ylabel('Predicted')
+    st.pyplot(fig)
 
-st.dataframe(
-    new_df[(new_df["Issue"] == issue_filter) & (new_df["Category"] == category_filter)]
-)
+    # Additional feature to predict BMI category
+    st.subheader('Predict BMI Category')
+    age = st.number_input('Age', min_value=0, max_value=120, value=25)
+    height = st.number_input('Height (in meters)', min_value=0.5, max_value=2.5, value=1.75)
+    weight = st.number_input('Weight (in kg)', min_value=10, max_value=300, value=70)
 
-st.markdown("")
-st.write(
-    "*Next*, we can visualize our data quickly using `st.metrics` and `st.bar_plot`"
-)
+    # Prepare data for BMI category prediction
+    input_data = pd.DataFrame([[age, height, weight]], columns=['Age', 'Height', 'Weight'])
+    
+    # Train the classifier for BMI category prediction
+    X_class = df[['Age', 'Height', 'Weight']]
+    y_class = df['BmiClass']
+    model_class = RandomForestClassifier()
+    model_class.fit(X_class, y_class)
 
-issue_cnt = len(new_df[new_df["Issue"] == True])
-total_cnt = len(new_df)
-issue_perc = f"{issue_cnt/total_cnt*100:.0f}%"
-
-col1, col2 = st.columns([1, 1])
-with col1:
-    st.metric("Number of responses", issue_cnt)
-with col2:
-    st.metric("Annotation Progress", issue_perc)
-
-df_plot = new_df[new_df["Category"] != ""].Category.value_counts().reset_index()
-
-st.bar_chart(df_plot, x="Category", y="count")
-
-st.write(
-    "Here we are at the end of getting started with streamlit! Happy Streamlit-ing! :balloon:"
-)
-
+    # Make prediction
+    if st.button('Predict BMI Category'):
+        bmi_category_encoded = model_class.predict(input_data)
+        bmi_category = le.inverse_transform(bmi_category_encoded)
+        st.write(f'The predicted BMI category is: {bmi_category[0]}')

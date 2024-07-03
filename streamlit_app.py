@@ -49,7 +49,7 @@ if uploaded_file is not None:
 
     st.subheader('Prediction results')
     predictions = pd.DataFrame({
-        'actual': y_train.append(y_test),
+        'actual': pd.concat([y_train, y_test]),
         'predicted': list(y_train_pred) + list(y_test_pred),
         'class': ['train'] * len(y_train) + ['test'] * len(y_test)
     }).reset_index(drop=True)

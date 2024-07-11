@@ -7,7 +7,7 @@ from sklearn.preprocessing import LabelEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-st.title('Automated Model Training and Evaluation')
+st.title('BMI Predictor and Classifier ')
 
 uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 
